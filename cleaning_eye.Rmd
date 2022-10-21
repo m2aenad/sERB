@@ -1,0 +1,128 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r}
+# Import libraries required for the vignette
+library(plyr)
+require(eyelinker)
+require(dplyr)
+require(tidyr)
+require(ggplot2)
+require(intervals)
+require(stringr)
+library(vroom)
+```
+Picture size:
+600x450
+
+```{r}
+setwd("/Users/gracer/University of Wyoming/M2AENAD Lab - Documents/RESEARCH/SPROUTS-PEAS/sEBR/data/t1_attn_bias/ASC/")
+temp = list.files(pattern = "*.asc")
+```
+```{r}
+setwd("/Users/gracer/University of Wyoming/M2AENAD Lab - Documents/RESEARCH/SPROUTS-PEAS/sEBR/data/t1_attn_bias/TXT/")
+temptxt = list.files(pattern = "*.txt")
+fintxt<-temptxt %>% str_replace("_RESULTS_FILE.txt", ".asc")
+fin<-intersect(fintxt,temp)
+```
+
+
+```{r}
+setwd("/Users/gracer/University of Wyoming/M2AENAD Lab - Documents/RESEARCH/SPROUTS-PEAS/sEBR/data/t1_attn_bias/ASC/")
+myfiles = lapply(fin, read.asc)
+```
+```{r}
+setwd("/Users/gracer/University of Wyoming/M2AENAD Lab - Documents/RESEARCH/SPROUTS-PEAS/sEBR/data/t1_attn_bias/TXT/")
+fintxt<-fin %>% str_replace(".asc", "_RESULTS_FILE.txt")
+txtfiles = lapply(fintxt, vroom)
+
+```
+
+
+```{r}
+blink_list <- vector(mode = "list", length = length(fintxt))
+
+for (i in 1:length(fin)){
+  print(i)
+  myfiles[[i]]$blinks$ID<-fin[[i]]
+  blink_list[[i]]<-myfiles[[i]]$blinks
+}
+```
+
+```{r}
+total_blinks<-dplyr::bind_rows(blink_list)
+head(total_blinks)
+summary(as.factor(total_blinks$ID))
+total_blinks$ID<-total_blinks$ID %>% str_replace(".asc", "")
+total_blinks$sub<-total_blinks$ID %>% str_replace("_T1A", "")%>% str_replace("_TA", "")%>% str_replace("T1A", "")%>% str_replace("_T1B", "")
+summary(as.factor(total_blinks$sub))
+write.table(total_blinks,"~/University of Wyoming/M2AENAD Lab - Documents/RESEARCH/SPROUTS-PEAS/sEBR/data/blinks.csv", row.names = F, sep=",")
+```
+
+
+
+```{r}
+yum_list <- vector(mode = "list", length = length(fintxt))
+limblink_list <- vector(mode = "list", length = length(fintxt))
+
+for (i in 1:length(blink_list)){
+  left<-filter(raw_list[[i]], raw_list[[i]]$high_location == "(480, 540)")
+  right<-filter(raw_list[[i]], raw_list[[i]]$high_location == "(1440, 540)")
+  left_yum<-left %>%
+    filter(xp > 180 & xp< 780) %>% 
+    filter(yp > 315 & yp<765)
+
+  right_yum<-right %>%
+    filter(xp > 1140 & xp< 1740) %>% 
+    filter(yp > 315 & yp<765)
+  
+  right_yum<-right_yum %>% 
+  group_by(block) %>%
+  mutate(
+    mintime = min(time, na.rm = T),
+    maxtime = max(time, na.rm = T))
+
+  left_yum<-left_yum %>% 
+    group_by(block) %>%
+    mutate(
+      mintime = min(time, na.rm = T),
+      maxtime = max(time, na.rm = T))
+  total<-rbind(left_yum, right_yum)
+  yum_list[[i]]<-total
+  LookingL <- cbind(total$mintime, total$maxtime) # Define a set of intervals
+  limblink_list[[i]]<-(filter(blink_list[[i]], stime %In% LookingL))
+
+}
+  
+```
+```{r}
+limblink_list[[12]]
+```
+
+
+left
+y == 765 - 315
+x == 180 - 780
+
+right
+y == 765 - 315
+x == 1140 - 1740
+
+
+It is also useful to eliminate any short (less than 120 millisecond duration)
+fixations that precede or follow a blink. These may be artificial or be corrupted
+by the blink. 
+
+
+```{r}
+LookingL <- cbind(left_yum$mintime, left_yum$maxtime) # Define a set of intervals
+LookingL
+head(filter(dat$blinks, stime %In% LookingL))
+dat$blinks
+```
+
+
+
+

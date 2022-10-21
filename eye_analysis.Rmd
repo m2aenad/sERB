@@ -1,0 +1,260 @@
+---
+title: "eye_analysis"
+output: html_document
+---
+
+```{r}
+require(eyelinker)
+library(plyr)
+require(dplyr)
+require(tidyr)
+require(ggplot2)
+require(intervals)
+require(stringr)
+library(vroom)
+```
+
+```{r}
+unhealthy<-c("FOOD_FROZEN_ICE_CREAM", "FOOD_FROZEN_ICE_CREAM_REDUCE","FOOD_FROZEN_YOGURT",              
+"FOOD_FROZEN_TREAT_IC_PUDDING","FOOD_FROZEN_TREAT_MILK_SHERBET","FOOD_FROZEN_FRUIT_JUICE_BAR",     
+"FOOD_FROZEN_SOY_DESSERT","FOOD_MICRO_QUICK_PIZZA", "FOOD_MICRO_QUICK_HOTPOCKET",      
+"FOOD_MICRO_QUICK_PIZZA_ROLLS","FOOD_MICRO_QUICK_BURRITO","FOOD_MICRO_QUICK_CHICKEN_NUG",    
+"FOOD_MICRO_QUICK_FRIES_TOTS","FOOD_MICRO_QUICK_EGGROLLS","FOOD_MICRO_QUICK_RAMEN",
+"FOOD_BREAD_CROISSANTS","FOOD_BREAD_CROISSANTS_TYPE",      
+"FOOD_DESSERT_COOKIES","FOOD_DESSERT_COOKIES_TYPE","FOOD_DESSERT_COOKIES_REDUCE",     
+"FOOD_DESSERT_COOKIES_REDUCE_TYPE", "FOOD_DESSERT_CAKE","FOOD_DESSERT_CAKE_TYPE",          
+"FOOD_DESSERT_CAKE_REDUCE","FOOD_DESSERT_CAKE_REDUCE_TYPE","FOOD_DESSERT_MUFFIN",             
+"FOOD_DESSERT_MUFFIN_TYPE","FOOD_DESSERT_BROWNIE","FOOD_DESSERT_BROWNIE_TYPE",       
+"FOOD_DESSERT_OTHER_CAKES","FOOD_DESSERT_OTHER_CAKES_TYPE","FOOD_DESSERT_PASTRY",             
+"FOOD_DESSERT_PASTRY_TYPE", 
+"FOOD_SNACK_CRACKERS" ,            
+"FOOD_SNACK_CRACKERS_REDUCE","FOOD_SNACK_CHIPS","FOOD_SNACK_CHIPS_REDUCE",         
+"FOOD_SNACK_CHIPS_CORN", "FOOD_SNACK_CHIPS_TORTILLA", "FOOD_SNACK_CHIPS_TORTILLA_REDUCE",
+"FOOD_SNACK_CHEESE_PUFF","FOOD_SNACK_CHEESE_PUFF_REDUCE","FOOD_SNACK_CHIPS_BAGEL",          
+"FOOD_SNACK_CHIPS_BAGEL_REDUCE","FOOD_SNACK_CRACKERS_GRAHAM","FOOD_SNACK_PRETZELS" ,            
+"FOOD_SNACK_POPCORN","FOOD_SNACK_NUTS","FOOD_SNACK_BARS",                 
+"FOOD_SNACK_BARS_REDUCE","FOOD_SNACK_PORTION",
+"FOOD_CEREAL_LESS_SUGAR" ,"FOOD_CEREAL_MORE_SUGAR","FOOD_BEVERAGE_SODA" ,             
+"FOOD_BEVERAGE_SODA_DIET", "FOOD_BEVERAGE_TEA_LEMONADE", "FOOD_BEVERAGE_TEA_LEMONADE_LIGHT",
+"FOOD_BEVERAGE_SPORTS_DRINK", "FOOD_BEVERAGE_FRUIT_JUICE","FOOD_BEVERAGE_FRUIT_DRINK" ,
+"FOOD_CANDY_CHOCOLATE",            
+"FOOD_CANDY_HARD"  ,"FOOD_CANDY_GUMMIS", 
+"FOOD_REFRIGERATOR_FRUIT_DRINK",   
+"FOOD_REFRIGERATOR_SODA")
+```
+
+# Reading in the data
+```{r}
+df_DG<-vroom("/Users/gracer/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofWyoming/M2AENAD Lab - Documents/RESEARCH/SPROUTS-PEAS/sEBR/data/t1Bx_CTDB_child_05_03_21.csv")
+df_eye<-vroom("/Users/gracer/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofWyoming/M2AENAD Lab - Documents/RESEARCH/SPROUTS-PEAS/sEBR/data/blinks.csv")
+df_home<-vroom("/Users/gracer/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofWyoming/M2AENAD Lab - Documents/RESEARCH/SPROUTS-PEAS/sEBR/data/t1_CTDB_mom_11_16_21.csv")
+df_demos<-vroom("/Users/gracer/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofWyoming/M2AENAD Lab - Documents/RESEARCH/SPROUTS-PEAS/sEBR/data/t1_msBx_02_10_22.csv")
+```
+
+# Summarizing data
+```{r}
+df_eye$ID<-as.factor(df_eye$ID)
+
+detach(package:plyr)
+df_eye<-df_eye %>% group_by(ID) %>% 
+  mutate(
+    endtime = max(etime, na.rm = T),
+    startime = min(stime, na.rm = T)
+  ) 
+df_eye
+
+keeps<-unique(df_eye$sub)
+length(keeps)
+
+
+names(df_home)
+inter<-df_home[59:320]
+inter$sub<-df_home$ID
+inter<-inter[inter$sub %in% keeps,]
+inter[,unhealthy]<-sapply(inter[,unhealthy], as.numeric)
+inter$unhealthy<-rowSums(inter[ , unhealthy], na.rm=TRUE)
+summary(inter$unhealthy)
+hist(inter$unhealthy)
+```
+
+```{r}
+df_eye_summary<-df_eye %>% group_by(ID) %>% 
+  dplyr::summarise(eye_freq = n())
+hist(df_eye_summary$eye_freq)
+
+library(plyr)
+df_eye$totaltime_minutes<-(df_eye$endtime-df_eye$startime)/(1000*60)
+df_eye
+
+timer<-df_eye[c("ID","sub","totaltime_minutes")]
+timer
+
+test<-join(timer, df_eye_summary)
+test
+
+test$EBR<-(test$eye_freq/test$totaltime_minutes)
+
+test<-test%>%
+  filter(totaltime_minutes <= 7)
+hist(test$totaltime_minutes)
+hist(test$EBR)
+```
+
+```{r}
+names(df_demos)
+kep<-c("patID","t1Bx_child_age","t1Bx_child_sex","t1Bx_child_race","t1Bx_child_ethnicity","t1Bx_child_height1","t1Bx_child_height2",    "t1Bx_child_height", "t1Bx_child_weight1", "t1Bx_child_weight2","t1Bx_child_weight")
+df_demos<-df_demos[kep]
+head(df_demos)
+
+df_demos[6:11]<-sapply(df_demos[6:11], FUN = as.numeric)
+
+df_demos$meanHt <- rowMeans(df_demos[,c('t1Bx_child_height1', 't1Bx_child_height2')], na.rm=TRUE)
+df_demos$meanWt <- rowMeans(df_demos[,c('t1Bx_child_weight1', 't1Bx_child_weight2')], na.rm=TRUE)
+
+library(childsds)
+df_demos$bmi <- df_demos$meanWt/(df_demos$meanHt**2) * 10000
+df_demos$t1Bx_child_sex
+
+df_demos$bmi_perc <- sds(df_demos$bmi,
+df_demos$t1Bx_child_age,
+sex = df_demos$t1Bx_child_sex, male = 1, female = 2,
+ref = cdc.ref ,
+item = "bmi",
+type = "perc")
+names(df_demos)
+colnames(df_demos)<-c("sub", "t1Bx_child_age" , "t1Bx_child_sex" ,"t1Bx_child_race", "t1Bx_child_ethnicity", "t1Bx_child_height1",   "t1Bx_child_height2",   "t1Bx_child_height", "t1Bx_child_weight1",   "t1Bx_child_weight2",   "t1Bx_child_weight",    "meanHt" , "meanWt",               "bmi", "bmi_perc")
+```
+
+```{r}
+int1<-c("sub","unhealthy")
+inter<-inter[int1]
+df_total<-join(inter, test)
+names(df_total)
+names(df_DG)
+int<-c("patID","Delay_grat_time_sec")
+time2delay<-df_DG[int]
+colnames(time2delay)<-c("sub","Delay_grat_time_sec")
+time2delay
+df_total<-join(time2delay,df_total)
+df_total<-df_total[complete.cases(df_total),]
+
+df_total<-df_total%>%
+  dplyr::group_by(sub)
+df_total
+
+df_total$sub<-as.numeric(as.character(df_total$sub))
+df_total$sub<-as.factor(df_total$sub)
+
+names(df_total)
+
+```
+
+# Filtering out and create factor levels
+```{r}
+library(psych)
+describe(df_total$Delay_grat_time_sec)
+detach(package:plyr)
+df_final<-df_total%>%
+  dplyr::select(sub, Delay_grat_time_sec, unhealthy, eye_freq, EBR)%>%
+  dplyr::group_by(sub)%>%
+   summarise(
+    n = n(),
+    meanDelay = mean(Delay_grat_time_sec),
+    meanUnhealthy = mean(unhealthy),
+    meanEye = mean(eye_freq),
+    meanEBR = mean(EBR)
+  )
+  
+df_final
+hist(df_final$meanDelay)
+filter(df_final, df_final$meanDelay <= 100)
+filter(df_final, df_final$meanDelay > 399)
+filter(df_final, df_final$meanDelay <= 399 & df_final$meanDelay > 100)
+
+
+df_final$delay_group <- as.factor(ifelse(df_final$meanDelay <= 100, 'Low',
+                     ifelse(df_final$meanDelay >100 & df_final$meanDelay <=399 , 'Medium', 
+                     ifelse(df_final$meanDelay > 399, 'High','NA'))))
+summary(df_final$delay_group)
+library(plyr)
+df_final<-join(df_final, df_demos)
+names(df_final)
+```
+
+
+```{r}
+cbPalette <- c("#CC4F7E","#6D8DF3", "#745FE7")
+
+df_final$delay_group <- factor(df_final$delay_group, levels = c("Low", "Medium", "High"))
+
+ggplot(df_final, aes(meanDelay,meanUnhealthy)) +
+  geom_point()+
+  geom_smooth(method = lm) + 
+  theme_classic()
+
+ggplot(df_final, aes(meanUnhealthy,meanEBR, group = delay_group, color = delay_group)) +
+  geom_point()+
+  geom_smooth(method = lm) + 
+  theme_classic() + scale_colour_manual(values=cbPalette)
+```
+
+
+# Here are the models
+```{r}
+names(df_final)
+model0 <- lm(meanUnhealthy ~ delay_group, data = df_final, na.action = na.omit)
+summary(model0)
+```
+
+
+
+```{r}
+model00<-lm(meanEBR~meanUnhealthy, data = df_final, na.action = na.omit)
+summary(model00)
+model1 <- lm(meanEBR~meanUnhealthy*delay_group+t1Bx_child_age+bmi_perc+t1Bx_child_sex, data = df_final, na.action = na.omit)
+summary(model1)
+
+model00<-lm(t1Bx_child_age~delay_group, data = df_final, na.action = na.omit)
+summary(model00)
+
+library(lm.beta)
+lm.beta(model2)
+```
+
+
+```{r}
+names(df_final)
+model2 <- lm(meanEBR ~ meanUnhealthy*delay_group+bmi_perc+t1Bx_child_sex+t1Bx_child_age, data = df_final, na.action = na.omit)
+summary(model2)
+
+library(lm.beta)
+lm.beta(model2)
+describe(df_final$bmi_perc)
+summary(as.factor(df_final$delay_group))
+```
+
+
+```{r}
+library(MASS)
+olr<- polr(delay_group ~ meanUnhealthy*meanEBR , data = df_final, Hess = TRUE)
+summary(olr)
+
+```
+
+```{r}
+library(emmeans)
+model3 <- lm(meanEBR ~ meanUnhealthy*delay_group, data = df_final, na.action = na.omit)
+summary(model3)
+
+# Obtain slopes
+model3$coefficients
+m.lst <- lstrends(model3, "delay_group", var="meanUnhealthy")
+summary(m.lst)
+
+# Compare slopes
+pairs(m.lst)
+```
+
+```{r}
+write.table(df_final, "/Users/gracer/Library/CloudStorage/OneDrive-SharedLibraries-UniversityofWyoming/M2AENAD Lab - Documents/RESEARCH/SPROUTS-PEAS/sEBR/data/sEBR_final.csv", sep=",")
+```
